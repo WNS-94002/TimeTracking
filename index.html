@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ระบบบันทึกเวลาทำงาน</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">
+        <span class="brand-mark">TT</span>
+        <span class="brand-text">ระบบบันทึกเวลาทำงาน</span>
+      </div>
+      <nav class="sidebar-nav" id="mainTabs">
+        <button class="nav-item" data-view="scan">
+          <svg viewBox="0 0 24 24"><path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3" stroke-linecap="round"/><circle cx="12" cy="10.5" r="2.6"/><path d="M7.8 17c.6-2 2.2-3 4.2-3s3.6 1 4.2 3" stroke-linecap="round"/></svg>
+          <span>สแกนเข้า-ออกงาน</span>
+        </button>
+        <button class="nav-item" data-view="dashboard">
+          <svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm10 0h8v5h-8V3zM3 13h8v8H3v-8zm10 3h8v5h-8v-5z"/></svg>
+          <span>ภาพรวมวันนี้</span>
+        </button>
+        <button class="nav-item" data-view="attendance">
+          <svg viewBox="0 0 24 24"><path d="M6 2v3M18 2v3M3 9h18M4 5h16a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1z" stroke-linejoin="round"/><path d="m8.5 14.5 2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>ประวัติเวลาทำงาน</span>
+        </button>
+        <button class="nav-item" data-view="enroll">
+          <svg viewBox="0 0 24 24"><circle cx="10" cy="8" r="4"/><path d="M3 21a7 7 0 0 1 11.5-5.4" stroke-linecap="round"/><path d="M17 15v6M14 18h6" stroke-linecap="round"/></svg>
+          <span>ลงทะเบียนใบหน้า</span>
+        </button>
+        <button class="nav-item" data-view="employees">
+          <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0" stroke-linecap="round"/><path d="M17 11a3 3 0 1 0 0-6M18.5 21a6 6 0 0 0-3-5.2" stroke-linecap="round"/></svg>
+          <span>พนักงาน</span>
+        </button>
+        <button class="nav-item" data-view="settings">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z" stroke-linejoin="round"/></svg>
+          <span>ตั้งค่า</span>
+        </button>
+      </nav>
+    </aside>
+
+    <div class="main-wrapper">
+      <header class="topbar">
+        <button class="menu-toggle" id="menuToggle" aria-label="เปิด/ปิดเมนู">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M3 6h18M3 12h18M3 18h18" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+        <h1 id="pageTitle">สแกนเข้า-ออกงาน</h1>
+        <span class="topbar-spacer"></span>
+        <span class="model-status is-loading" id="modelStatus"><span class="dot"></span>กำลังโหลดโมเดลใบหน้า...</span>
+      </header>
+
+      <main id="app" class="app">
+        <p class="loading">กำลังโหลดข้อมูล...</p>
+      </main>
+    </div>
+  </div>
+
+  <div id="errorBanner" class="error-banner" hidden></div>
+
+  <!-- fork ของ face-api.js ที่ยังดูแลอยู่ (ตัวเดิมหยุดที่ 0.22.2 ปี 2020 และเข้ากับ tfjs รุ่นใหม่ไม่ได้) -->
+  <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.js"></script>
+  <script src="face.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
