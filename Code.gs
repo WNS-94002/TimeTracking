@@ -464,6 +464,24 @@ function savePhoto_(base64, dateKey, employeeId, type, settings) {
 
 // ---------- Settings ----------
 
+// ค่าที่ต้องอยู่ในรูปแบบ HH:mm เป๊ะ ๆ เพราะฝั่งหน้าเว็บใช้ <input type="time"> ซึ่งไม่รับ "8:00"
+var TIME_SETTING_KEYS = ['WorkStartTime', 'WorkEndTime'];
+
+/**
+ * บังคับค่าเวลาให้เป็น HH:mm
+ *
+ * ช่องอย่าง "08:00" มักถูก Sheets ตีความเป็นชนิดเวลาโดยอัตโนมัติ และถ้ามีการเปลี่ยนรูปแบบเซลล์
+ * เป็นข้อความภายหลัง ค่าจะกลายเป็น "8:00" ที่ตัดศูนย์นำหน้าออก — คำนวณยังถูก แต่ <input type="time">
+ * จะมองว่าเป็นค่าไม่ถูกต้องแล้วแสดงช่องว่าง ผู้ใช้ที่กดบันทึกทับจึงลบเวลาเข้างานทิ้งโดยไม่รู้ตัว
+ */
+function normalizeTimeSetting_(value) {
+  if (value instanceof Date) return Utilities.formatDate(value, tz_(), 'HH:mm');
+  var m = String(value).trim().match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return String(value).trim();
+  var h = Number(m[1]);
+  return (h < 10 ? '0' + h : String(h)) + ':' + m[2];
+}
+
 function getSettings_() {
   var settings = {};
   Object.keys(DEFAULT_SETTINGS).forEach(function (k) { settings[k] = DEFAULT_SETTINGS[k]; });
@@ -474,29 +492,39 @@ function getSettings_() {
     var key = String(r[0]).trim();
     if (!key) return;
     settings[key] = r[1] instanceof Date
-      ? Utilities.formatDate(r[1], tz_(), 'HH:mm')   // ช่อง 08:00 มักถูก Sheets แปลงเป็นเวลาอัตโนมัติ
+      ? Utilities.formatDate(r[1], tz_(), 'HH:mm')
       : String(r[1]).trim();
+  });
+  // ทำให้เป็นรูปแบบมาตรฐานตอนอ่าน ไม่ใช่แค่ตอนเขียน — ชีตที่สร้างไว้ก่อนหน้านี้จะได้ใช้ได้ด้วย
+  TIME_SETTING_KEYS.forEach(function (k) {
+    if (settings[k]) settings[k] = normalizeTimeSetting_(settings[k]);
   });
   return settings;
 }
 
 function saveSettings_(settings) {
   var sheet = getSheet_(SHEETS.SETTINGS);
-  var keys = Object.keys(settings);
   var lastRow = sheet.getLastRow();
   var existing = lastRow < 2 ? [] : sheet.getRange(2, 1, lastRow - 1, 1).getValues();
 
-  keys.forEach(function (key) {
+  Object.keys(settings).forEach(function (key) {
+    var value = String(settings[key]);
+    if (TIME_SETTING_KEYS.indexOf(key) !== -1) value = normalizeTimeSetting_(value);
+
     var rowIndex = -1;
     for (var i = 0; i < existing.length; i++) {
       if (String(existing[i][0]).trim() === key) { rowIndex = i + 2; break; }
     }
-    // เขียนค่าเป็นข้อความเสมอ กัน Sheets แปลง "08:00" เป็นชนิดเวลาแล้วอ่านกลับมาเพี้ยน
+
     if (rowIndex === -1) {
-      sheet.appendRow([key, String(settings[key])]);
-      sheet.getRange(sheet.getLastRow(), 2).setNumberFormat('@');
+      // ต้องตั้งรูปแบบเซลล์เป็นข้อความ "ก่อน" เขียนค่าเสมอ — ถ้า appendRow ไปก่อน Sheets จะแปลง
+      // "08:00" เป็นชนิดเวลาไปแล้ว การมาตั้งรูปแบบทีหลังจะได้ข้อความ "8:00" ที่หายศูนย์นำหน้า
+      rowIndex = lastRow < 2 ? 2 : sheet.getLastRow() + 1;
+      sheet.getRange(rowIndex, 1, 1, 2).setNumberFormat('@').setValues([[key, value]]);
+      existing.push([key]);
+      lastRow = rowIndex;
     } else {
-      sheet.getRange(rowIndex, 2).setNumberFormat('@').setValue(String(settings[key]));
+      sheet.getRange(rowIndex, 2).setNumberFormat('@').setValue(value);
     }
   });
   return getSettings_();

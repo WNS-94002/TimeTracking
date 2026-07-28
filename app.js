@@ -1,7 +1,7 @@
 /* ===== ตั้งค่าการเชื่อมต่อ ===== */
 
 // URL ของ Apps Script Web App ที่ deploy แล้ว (ลงท้ายด้วย /exec)
-const API_URL = '';
+const API_URL = 'https://script.google.com/macros/s/AKfycbwx2iq8co4tmj877vmkaGUJsPSlq_4hReYpI71FxGAN0sdOZ2XPeaglA0Fj-9ME5f2xVg/exec';
 
 // ต้องตรงกับ API_TOKEN ใน Code.gs ('' = ปิดการตรวจสอบ)
 const API_TOKEN = '';
@@ -974,13 +974,13 @@ function renderEmployeeForm(app) {
 /* ===== หน้าตั้งค่า ===== */
 
 const SETTING_FIELDS = [
-  { key: 'WorkStartTime', label: 'เวลาเข้างานมาตรฐาน', type: 'time', hint: 'ใช้คำนวณว่ามาสายกี่นาที' },
-  { key: 'WorkEndTime', label: 'เวลาเลิกงาน', type: 'time', hint: 'ใช้แสดงผลเท่านั้น' },
-  { key: 'LateGraceMinutes', label: 'ผ่อนผัน (นาที)', type: 'number', hint: 'เข้างานช้าไม่เกินนี้ยังถือว่าตรงเวลา' },
-  { key: 'BreakMinutes', label: 'เวลาพัก (นาที)', type: 'number', hint: 'หักออกจากชั่วโมงทำงาน' },
-  { key: 'MinScanIntervalMinutes', label: 'กันสแกนซ้ำ (นาที)', type: 'number', hint: 'สแกนซ้ำภายในช่วงนี้จะไม่บันทึกใหม่' },
-  { key: 'MatchThreshold', label: 'ความเข้มการจับคู่ใบหน้า', type: 'number', step: '0.01', hint: 'ยิ่งน้อยยิ่งเข้ม แนะนำ 0.40–0.50' },
-  { key: 'MatchMargin', label: 'ระยะห่างจากอันดับสอง', type: 'number', step: '0.01', hint: 'กันสับสนระหว่างคนหน้าคล้ายกัน' },
+  { key: 'WorkStartTime', label: 'เวลาเข้างานมาตรฐาน', type: 'time', required: true, hint: 'ใช้คำนวณว่ามาสายกี่นาที' },
+  { key: 'WorkEndTime', label: 'เวลาเลิกงาน', type: 'time', required: true, hint: 'ใช้แสดงผลเท่านั้น' },
+  { key: 'LateGraceMinutes', label: 'ผ่อนผัน (นาที)', type: 'number', required: true, hint: 'เข้างานช้าไม่เกินนี้ยังถือว่าตรงเวลา' },
+  { key: 'BreakMinutes', label: 'เวลาพัก (นาที)', type: 'number', required: true, hint: 'หักออกจากชั่วโมงทำงาน' },
+  { key: 'MinScanIntervalMinutes', label: 'กันสแกนซ้ำ (นาที)', type: 'number', required: true, hint: 'สแกนซ้ำภายในช่วงนี้จะไม่บันทึกใหม่' },
+  { key: 'MatchThreshold', label: 'ความเข้มการจับคู่ใบหน้า', type: 'number', step: '0.01', required: true, hint: 'ยิ่งน้อยยิ่งเข้ม แนะนำ 0.40–0.50' },
+  { key: 'MatchMargin', label: 'ระยะห่างจากอันดับสอง', type: 'number', step: '0.01', required: true, hint: 'กันสับสนระหว่างคนหน้าคล้ายกัน' },
   { key: 'DriveFolderId', label: 'รหัสโฟลเดอร์ Drive เก็บรูป', type: 'text', hint: 'เว้นว่าง = ไม่เก็บรูป' }
 ];
 
@@ -1023,6 +1023,14 @@ function renderSettings(app) {
   document.getElementById('btnSaveSettings').addEventListener('click', async () => {
     const settings = {};
     SETTING_FIELDS.forEach((f) => { settings[f.key] = document.getElementById(`set_${f.key}`).value.trim(); });
+
+    // เวลาเข้างานว่าง = ทุกคนถูกนับว่าสายทั้งวัน ต้องกันไว้ ไม่ใช่ปล่อยให้บันทึกแล้วค่อยไปงงทีหลัง
+    const blank = SETTING_FIELDS.filter((f) => f.required && !settings[f.key]);
+    if (blank.length) {
+      showError('ต้องกรอก: ' + blank.map((f) => f.label).join(', '));
+      return;
+    }
+
     try {
       state.settings = await apiPost({ type: 'saveSettings', settings });
       render();

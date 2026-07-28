@@ -92,6 +92,17 @@ check('เปลี่ยน WorkStartTime แล้วการนับสา�
 r = applyAttendanceComputedFields_({ TimeIn: at(9, 0), TimeOut: at(18, 0) }, { WorkStartTime: '09:00', LateGraceMinutes: '0', BreakMinutes: '0' });
 check('ไม่หักเวลาพัก = 9 ชม. เต็ม', r.WorkHours === 9);
 
+console.log('normalizeTimeSetting_ (ค่าเวลาในแท็บ Settings)');
+check('เติมศูนย์นำหน้าให้ 8:00', normalizeTimeSetting_('8:00') === '08:00');
+check('ค่าที่ถูกอยู่แล้วไม่เปลี่ยน', normalizeTimeSetting_('08:00') === '08:00');
+check('เวลาบ่ายไม่ถูกแตะ', normalizeTimeSetting_('17:30') === '17:30');
+check('รับค่าที่ Sheets คืนมาเป็นชนิด Date', normalizeTimeSetting_(at(8, 5)) === '08:05');
+check('ตัดช่องว่างหัวท้าย', normalizeTimeSetting_(' 9:15 ') === '09:15');
+check('ค่าที่ไม่ใช่เวลาส่งคืนตามเดิม', normalizeTimeSetting_('ไม่ใช่เวลา') === 'ไม่ใช่เวลา');
+check('ค่าว่างยังเป็นค่าว่าง', normalizeTimeSetting_('') === '');
+// ค่าที่ normalize แล้วต้องคำนวณได้เท่าเดิม — การแก้รูปแบบต้องไม่เปลี่ยนความหมาย
+check('normalize แล้วนาทีเท่าเดิม', hhmmToMinutes_(normalizeTimeSetting_('8:00')) === hhmmToMinutes_('8:00'));
+
 console.log('num_');
 check('ค่าที่แปลงไม่ได้ใช้ค่าสำรอง', num_('abc', 5) === 5);
 check('ข้อความตัวเลขแปลงได้', num_('0.45', 1) === 0.45);
