@@ -205,15 +205,30 @@ function deleteFaces_(employeeId) {
 
 // ---------- Attendance ----------
 
+/**
+ * อ่านแถว Attendance แล้วแปลงเป็นรูปแบบที่หน้าเว็บใช้ได้ทันที (Date = yyyy-MM-dd, เวลา = HH:mm)
+ *
+ * ต้องกรองและแปลงจาก "ค่าดิบ" ของเซลล์ ไม่ใช่จากผลของ sheetToObjects_ เพราะ Sheets เก็บช่องวันที่/เวลา
+ * เป็นชนิดวันที่-เวลา พอแปลงเป็น ISO แล้วมันเป็นเวลา UTC — การตัด 10 ตัวแรกจะได้วันที่ของโซน UTC
+ * ทำให้รายการที่สแกนช่วงเช้ามืด (00:00-07:00 ตามเวลาไทย) ถูกนับเป็นของเมื่อวานและหายไปจากหน้า "วันนี้"
+ */
 function listAttendance_(from, to) {
-  var rows = sheetToObjects_(getSheet_(SHEETS.ATTENDANCE));
-  if (!from && !to) return rows;
-  return rows.filter(function (r) {
-    var d = dateKey_(r.Date);
-    if (from && d < from) return false;
-    if (to && d > to) return false;
-    return true;
+  var sheet = getSheet_(SHEETS.ATTENDANCE);
+  var headers = getHeaders_(sheet);
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+
+  var values = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
+  var out = [];
+  values.forEach(function (rowValues) {
+    var row = {};
+    headers.forEach(function (header, i) { row[header] = rowValues[i]; });
+    var key = dateKey_(row.Date);
+    if (from && key < from) return;
+    if (to && key > to) return;
+    out.push(formatRow_(row));
   });
+  return out;
 }
 
 /** แก้ไขเวลาด้วยมือจากหน้าเว็บ — คำนวณสาย/ชั่วโมงใหม่ให้ตรงกับเวลาที่แก้ */
@@ -419,7 +434,17 @@ function findEmployee_(employeeId) {
 function listScanLogs_(limit) {
   var rows = sheetToObjects_(getSheet_(SHEETS.SCAN_LOGS));
   var n = num_(limit, 50);
-  return rows.slice(Math.max(0, rows.length - n)).reverse();
+  return rows.slice(Math.max(0, rows.length - n)).reverse().map(function (r) {
+    // Timestamp เขียนลงไปเป็นข้อความ แต่ Sheets มักแปลงเป็นชนิดวันที่-เวลาเอง แล้วอ่านกลับมาเป็น ISO แบบ UTC
+    r.Timestamp = formatTimestamp_(r.Timestamp);
+    return r;
+  });
+}
+
+/** แปลงค่าเวลาที่อ่านจากชีตให้เป็น 'yyyy-MM-dd HH:mm:ss' ตามเขตเวลาของสคริปต์ */
+function formatTimestamp_(value) {
+  var d = asDate_(value);
+  return d ? Utilities.formatDate(d, tz_(), 'yyyy-MM-dd HH:mm:ss') : value;
 }
 
 function logScan_(scan, employee, type, result, photoUrl, when) {

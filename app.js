@@ -1,7 +1,7 @@
 /* ===== ตั้งค่าการเชื่อมต่อ ===== */
 
 // URL ของ Apps Script Web App ที่ deploy แล้ว (ลงท้ายด้วย /exec)
-const API_URL = 'https://script.google.com/macros/s/AKfycbwx2iq8co4tmj877vmkaGUJsPSlq_4hReYpI71FxGAN0sdOZ2XPeaglA0Fj-9ME5f2xVg/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbz-DL_1tsIxaVud0UnZa9WUiuMDoPe203n8YGrcOV7T3kTxW0mbJRCD0q39O0IESlGdVA/exec';
 
 // ต้องตรงกับ API_TOKEN ใน Code.gs ('' = ปิดการตรวจสอบ)
 const API_TOKEN = '';

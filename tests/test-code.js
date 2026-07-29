@@ -92,6 +92,32 @@ check('เปลี่ยน WorkStartTime แล้วการนับสา�
 r = applyAttendanceComputedFields_({ TimeIn: at(9, 0), TimeOut: at(18, 0) }, { WorkStartTime: '09:00', LateGraceMinutes: '0', BreakMinutes: '0' });
 check('ไม่หักเวลาพัก = 9 ชม. เต็ม', r.WorkHours === 9);
 
+console.log('formatRow_ (สิ่งที่ส่งกลับให้หน้าเว็บ)');
+// จำลองแถวที่ Sheets คืนมาเป็นชนิดวันที่-เวลา ซึ่งเป็นสิ่งที่เกิดขึ้นจริงในชีตที่ใช้งานอยู่
+const rawRow = {
+  Date: new Date(2026, 6, 29, 0, 0, 0),
+  EmployeeID: 9402,
+  FullName: 'วศิน สินธพ',
+  TimeIn: new Date(2026, 6, 29, 0, 43, 9),
+  TimeOut: new Date(2026, 6, 29, 8, 5, 0),
+  LateMinutes: 0,
+  WorkHours: 6.4
+};
+const shaped = formatRow_(rawRow);
+check('Date เป็น yyyy-MM-dd ไม่ใช่ ISO', shaped.Date === '2026-07-29');
+check('TimeIn เป็น HH:mm', shaped.TimeIn === '00:43');
+check('TimeOut เป็น HH:mm', shaped.TimeOut === '08:05');
+check('ค่าอื่นไม่ถูกแตะ', shaped.FullName === 'วศิน สินธพ' && shaped.WorkHours === 6.4 && shaped.EmployeeID === 9402);
+const emptyShaped = formatRow_({ Date: new Date(2026, 6, 29), TimeIn: '', TimeOut: '' });
+check('ช่องเวลาว่างยังว่างอยู่', emptyShaped.TimeIn === '' && emptyShaped.TimeOut === '');
+
+// หัวใจของบั๊ก: เวลา 00:43 ไทย = 17:43Z ของ "วันก่อนหน้า" การตัด 10 ตัวแรกของ ISO จะได้วันที่ผิด
+console.log('dateKey_ กับเวลาเช้ามืด (จุดที่เคยพลาด)');
+const earlyMorning = new Date(2026, 6, 29, 0, 43, 0);
+check('dateKey_ จากค่าดิบได้วันที่ตามเวลาท้องถิ่น', dateKey_(earlyMorning) === '2026-07-29');
+check('ถ้าเผลอแปลงเป็น ISO ก่อนจะได้วันที่ผิด (ยืนยันว่าบั๊กมีจริง)',
+  earlyMorning.toISOString().slice(0, 10) !== '2026-07-29' || earlyMorning.getTimezoneOffset() >= 0);
+
 console.log('normalizeTimeSetting_ (ค่าเวลาในแท็บ Settings)');
 check('เติมศูนย์นำหน้าให้ 8:00', normalizeTimeSetting_('8:00') === '08:00');
 check('ค่าที่ถูกอยู่แล้วไม่เปลี่ยน', normalizeTimeSetting_('08:00') === '08:00');
