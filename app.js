@@ -238,8 +238,13 @@ function renderScan(app) {
   renderScanFeed();
 }
 
-/** ปิดกล้องและหยุดลูป แล้วคืนหน้าจอกลับสู่สถานะรอกดเริ่ม */
-function stopScan() {
+/**
+ * ปิดกล้องและหยุดลูป
+ * keepResult = true ใช้ตอนสแกนสำเร็จ — ปิดกล้องแต่คงการ์ดผลลัพธ์ไว้ให้อ่าน
+ */
+function stopScan(options) {
+  const keepResult = !!(options && options.keepResult);
+
   stopScanLoop();
   FaceEngine.stopCamera();
 
@@ -250,10 +255,15 @@ function stopScan() {
   FaceEngine.clearBox(document.getElementById('scanOverlay'));
   const placeholder = document.getElementById('camPlaceholder');
   if (placeholder) placeholder.hidden = false;
-  setScanMessage('กดปุ่ม "เริ่มสแกน" เพื่อเปิดกล้อง');
-  setScanButton('เริ่มสแกน', false);
-  setScanHint('กล้องจะเปิดก็ต่อเมื่อกดปุ่มนี้เท่านั้น');
-  showResult(null);
+
+  setScanButton(keepResult ? 'สแกนคนถัดไป' : 'เริ่มสแกน', false);
+  if (keepResult) {
+    setScanHint('กด "สแกนคนถัดไป" เมื่อพร้อมรับคนถัดไป');
+  } else {
+    setScanMessage('กดปุ่ม "เริ่มสแกน" เพื่อเปิดกล้อง');
+    setScanHint('กล้องจะเปิดก็ต่อเมื่อกดปุ่มนี้เท่านั้น');
+    showResult(null);
+  }
 }
 
 function setScanButton(label, running, disabled) {
@@ -311,6 +321,7 @@ async function startScan() {
   const placeholder = document.getElementById('camPlaceholder');
 
   setScanButton('กำลังเปิดกล้อง...', false, true);
+  showResult(null);   // ล้างผลของคนก่อนหน้า กันสับสนว่าเป็นผลของคนที่กำลังจะสแกน
 
   try {
     if (!FaceEngine.isReady()) {
@@ -364,7 +375,8 @@ async function startScan() {
             if (stabilizer.push(result.employeeId)) {
               scanBusy = true;
               stabilizer.reset();
-              await submitScan(result.employeeId, result.distance, video, overlay, myToken);
+              await submitScan(result.employeeId, result.distance, video);
+              return; // submitScan ปิดกล้องแล้ว ไม่ต้องตั้งรอบถัดไป
             }
           }
         }
@@ -383,9 +395,14 @@ function matchFailMessage(result) {
   return 'ไม่พบข้อมูลใบหน้าของคนนี้';
 }
 
-async function submitScan(employeeId, distance, video, overlay, myToken) {
+async function submitScan(employeeId, distance, video) {
   const photo = FaceEngine.snapshot(video);
   const employee = employeeById(employeeId);
+
+  // ปิดกล้องทันทีที่จับภาพได้ ไม่รอผลจากเซิร์ฟเวอร์ (Apps Script ใช้เวลาราวหนึ่งวินาที)
+  // ถ้าปล่อยกล้องเปิดค้างระหว่างรอ คนถัดไปที่เดินเข้ามาจะถูกจับภาพซ้อนเข้ามาด้วย
+  stopScan({ keepResult: true });
+  setScanMessage('กำลังบันทึก...');
   showResult({ pending: true, employee });
 
   try {
@@ -402,19 +419,12 @@ async function submitScan(employeeId, distance, video, overlay, myToken) {
     if (!data.duplicate) upsertToday(data.attendance);
     showResult({ ...data, photo });
     renderScanFeed();
+    setScanMessage(data.duplicate ? 'ไม่ได้บันทึก (สแกนซ้ำ)' : 'บันทึกเรียบร้อย');
   } catch (err) {
     showError(err.message);
     showResult({ error: err.message, employee });
+    setScanMessage('บันทึกไม่สำเร็จ');
   }
-
-  // หน่วงไว้ให้คนอ่านผลทัน แล้วค่อยรับคนถัดไป
-  setTimeout(() => {
-    if (myToken !== scanToken) return;
-    scanBusy = false;
-    FaceEngine.clearBox(overlay);
-    setScanHint('หันหน้าเข้ากล้องให้อยู่ในกรอบ ระบบจะบันทึกให้อัตโนมัติ');
-    showResult(null);
-  }, 4000);
 }
 
 function upsertToday(row) {

@@ -76,6 +76,12 @@ stays on after navigating away.
 `state.scanning` / `state.enroll.cameraOn` drive the button labels and the enable state of "เก็บภาพ". Both are
 reset by `setView`, so returning to a camera view always lands back on "press to start" — never auto-resuming.
 
+**One press scans exactly one person.** `submitScan()` calls `stopScan({ keepResult: true })` *before* awaiting
+the POST, not after: Apps Script takes ~1s to answer, and a camera left running through that window captures
+whoever walks up next. Stopping first also means the result card is the only thing on screen while the write
+lands, so the operator cannot mistake a stale preview for the new person. The card stays until the next
+`startScan()`, which clears it.
+
 The scan loop is guarded by the module-level `scanToken`: `stopScanLoop()` increments it, and each iteration
 bails if its captured token no longer matches. `await` points inside the loop mean a view change can land
 mid-iteration — that is exactly what the token check catches. Keep the check after every `await`.
