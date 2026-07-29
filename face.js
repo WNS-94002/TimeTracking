@@ -19,6 +19,18 @@ const FaceEngine = (() => {
   let loadingPromise = null;
   let stream = null;
 
+  // 'user' = กล้องหน้า, 'environment' = กล้องหลัง
+  // จำค่าที่ผู้ใช้เลือกไว้ เพราะเครื่องหนึ่งเครื่องมักถูกใช้ในท่าเดิมทุกวัน
+  // (มือถือของหัวหน้างานมักใช้กล้องหลังส่องพนักงาน ส่วนโน้ตบุ๊กมีแต่กล้องหน้า)
+  const FACING_KEY = 'timetracking.facingMode';
+  let facingMode = 'user';
+  try {
+    const saved = localStorage.getItem(FACING_KEY);
+    if (saved === 'user' || saved === 'environment') facingMode = saved;
+  } catch (err) {
+    // โหมดส่วนตัวของบางเบราว์เซอร์ห้ามแตะ localStorage — ใช้ค่าเริ่มต้นไปก่อน ไม่ใช่เรื่องคอขาดบาดตาย
+  }
+
   // ===== โมเดล =====
 
   function isReady() {
@@ -34,11 +46,15 @@ const FaceEngine = (() => {
       return Promise.reject(new Error('โหลดไลบรารี face-api ไม่สำเร็จ — ตรวจการเชื่อมต่ออินเทอร์เน็ต'));
     }
 
-    loadingPromise = Promise.all([
+    // ต้องรอ tf.ready() ก่อนเสมอ: เครื่องที่ไม่มี WebGL (มือถือรุ่นเก่า หรือเบราว์เซอร์ที่ปิด WebGL)
+    // จะตกไปใช้ backend 'wasm' ซึ่งยังไม่ถูก init ทำให้ loadFromUri ล้มทันทีด้วยข้อความ
+    // "The highest priority backend 'wasm' has not yet been initialized"
+    // เครื่องที่มี WebGL อยู่แล้วเรียกบรรทัดนี้ก็ไม่เสียหาย
+    loadingPromise = faceapi.tf.ready().then(() => Promise.all([
       faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
       faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
       faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
-    ]).then(() => {
+    ])).then(() => {
       modelsReady = true;
     }).catch((err) => {
       loadingPromise = null; // ให้ลองใหม่ได้ถ้าเน็ตหลุดตอนโหลด
@@ -60,8 +76,9 @@ const FaceEngine = (() => {
     }
     stopCamera();
     try {
+      // ระบุ facingMode แบบไม่บังคับ (ไม่ใช้ exact) เครื่องที่มีกล้องเดียวจะได้ยังใช้ได้
       stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 960 }, height: { ideal: 720 } },
+        video: { facingMode: facingMode, width: { ideal: 960 }, height: { ideal: 720 } },
         audio: false
       });
     } catch (err) {
@@ -80,6 +97,44 @@ const FaceEngine = (() => {
     if (!stream) return;
     stream.getTracks().forEach((track) => track.stop());
     stream = null;
+  }
+
+  function getFacingMode() {
+    return facingMode;
+  }
+
+  /** สลับกล้องหน้า/หลัง แล้วเปิดใหม่ด้วยกล้องอีกตัว */
+  async function switchCamera(videoEl) {
+    const previous = facingMode;
+    facingMode = facingMode === 'user' ? 'environment' : 'user';
+    try {
+      await startCamera(videoEl);
+    } catch (err) {
+      facingMode = previous;   // เครื่องนี้ไม่มีกล้องอีกด้าน — กลับไปใช้ตัวเดิมแล้วเปิดต่อ
+      await startCamera(videoEl);
+      throw new Error('เครื่องนี้มีกล้องด้านเดียว สลับไม่ได้');
+    }
+    try {
+      localStorage.setItem(FACING_KEY, facingMode);
+    } catch (err) {
+      // จำค่าไม่ได้ก็ไม่เป็นไร ผู้ใช้กดสลับใหม่ได้
+    }
+    return facingMode;
+  }
+
+  /**
+   * มีกล้องมากกว่าหนึ่งตัวหรือไม่ — ใช้ตัดสินว่าจะแสดงปุ่มสลับกล้องไหม
+   * ต้องเรียก "หลัง" เปิดกล้องแล้วเท่านั้น เพราะก่อนได้รับอนุญาต หลายเบราว์เซอร์
+   * (โดยเฉพาะ Safari บน iOS) จะไม่บอกรายชื่ออุปกรณ์
+   */
+  async function hasMultipleCameras() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return false;
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      return devices.filter((d) => d.kind === 'videoinput').length > 1;
+    } catch (err) {
+      return false;
+    }
   }
 
   function cameraErrorMessage(err) {
@@ -261,6 +316,9 @@ const FaceEngine = (() => {
     loadModels,
     startCamera,
     stopCamera,
+    switchCamera,
+    getFacingMode,
+    hasMultipleCameras,
     detect,
     drawBox,
     clearBox,

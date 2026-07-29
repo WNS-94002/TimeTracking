@@ -147,6 +147,7 @@ function render() {
     btn.classList.toggle('active', active);
   });
   document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarBackdrop').hidden = true;
 
   if (!state.loaded) {
     app.innerHTML = '<p class="loading">กำลังโหลดข้อมูล...</p>';
@@ -181,9 +182,12 @@ function renderScan(app) {
   app.innerHTML = `
     <div class="scan-layout">
       <div>
-        <div class="video-frame mirrored" id="scanFrame">
+        <div class="video-frame" id="scanFrame">
           <video id="scanVideo" playsinline muted></video>
           <canvas class="overlay" id="scanOverlay"></canvas>
+          <button class="cam-flip" id="btnFlipCamera" aria-label="สลับกล้องหน้า/หลัง" hidden>
+            <svg viewBox="0 0 24 24"><path d="M15 4h3a2 2 0 0 1 2 2v3" stroke-linecap="round" stroke-linejoin="round"/><path d="m18 2 2 2-2 2" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 20H6a2 2 0 0 1-2-2v-3" stroke-linecap="round" stroke-linejoin="round"/><path d="m6 22-2-2 2-2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.2"/></svg>
+          </button>
           <div class="cam-placeholder" id="camPlaceholder">
             <svg viewBox="0 0 24 24"><path d="M23 7l-7 5 7 5V7z" stroke-linecap="round" stroke-linejoin="round"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
             <span id="camMessage">กดปุ่ม "เริ่มสแกน" เพื่อเปิดกล้อง</span>
@@ -235,7 +239,32 @@ function renderScan(app) {
     else startScan();
   });
 
+  document.getElementById('btnFlipCamera').addEventListener('click', flipCamera);
+
   renderScanFeed();
+}
+
+/**
+ * ภาพจากกล้องหน้าต้องพลิกซ้าย-ขวาให้เหมือนส่องกระจก คนที่ยืนอยู่จะได้ขยับตัวถูกทาง
+ * แต่กล้องหลังส่องออกไปข้างนอก ภาพที่ได้ตรงกับที่ตาเห็นอยู่แล้ว พลิกจะกลายเป็นกลับด้าน
+ * (ตัวตรวจจับอ่านจาก video element โดยตรง การพลิกด้วย CSS จึงไม่กระทบผลการจับคู่ใบหน้า)
+ */
+function applyMirror() {
+  const frame = document.getElementById('scanFrame');
+  if (frame) frame.classList.toggle('mirrored', FaceEngine.getFacingMode() === 'user');
+}
+
+async function flipCamera() {
+  const btn = document.getElementById('btnFlipCamera');
+  const video = document.getElementById('scanVideo');
+  btn.disabled = true;
+  try {
+    await FaceEngine.switchCamera(video);
+    applyMirror();
+  } catch (err) {
+    showError(err.message);
+  }
+  btn.disabled = false;
 }
 
 /**
@@ -255,6 +284,10 @@ function stopScan(options) {
   FaceEngine.clearBox(document.getElementById('scanOverlay'));
   const placeholder = document.getElementById('camPlaceholder');
   if (placeholder) placeholder.hidden = false;
+
+  // ซ่อนปุ่มสลับกล้องตอนกล้องปิด — กดแล้วไม่มีอะไรให้สลับ
+  const flip = document.getElementById('btnFlipCamera');
+  if (flip) { flip.hidden = true; flip.classList.remove('visible'); }
 
   setScanButton(keepResult ? 'สแกนคนถัดไป' : 'เริ่มสแกน', false);
   if (keepResult) {
@@ -342,7 +375,14 @@ async function startScan() {
 
   placeholder.hidden = true;
   state.scanning = true;
+  applyMirror();
   setScanButton('หยุดสแกน', true);
+
+  // ตรวจจำนวนกล้องได้ก็ต่อเมื่อได้รับอนุญาตแล้ว จึงต้องเช็คตรงนี้ ไม่ใช่ตอน render
+  FaceEngine.hasMultipleCameras().then((multiple) => {
+    const flip = document.getElementById('btnFlipCamera');
+    if (flip && multiple) { flip.hidden = false; flip.classList.add('visible'); }
+  });
   setScanHint(state.faceIndex.length
     ? 'หันหน้าเข้ากล้องให้อยู่ในกรอบ ระบบจะบันทึกให้อัตโนมัติ'
     : 'ยังไม่มีใบหน้าที่ลงทะเบียนไว้ — ไปที่เมนู "ลงทะเบียนใบหน้า" ก่อน');
@@ -741,7 +781,7 @@ function renderEnroll(app) {
   app.innerHTML = `
     <div class="scan-layout">
       <div>
-        <div class="video-frame mirrored">
+        <div class="video-frame" id="enrollFrame">
           <video id="enrollVideo" playsinline muted></video>
           <div class="cam-placeholder" id="enrollPlaceholder">
             <svg viewBox="0 0 24 24"><path d="M23 7l-7 5 7 5V7z" stroke-linecap="round" stroke-linejoin="round"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
@@ -844,6 +884,8 @@ async function startEnrollCamera() {
     placeholder.hidden = true;
     btn.hidden = true;
     state.enroll.cameraOn = true;
+    const frame = document.getElementById('enrollFrame');
+    if (frame) frame.classList.toggle('mirrored', FaceEngine.getFacingMode() === 'user');
     updateEnrollUi();
   } catch (err) {
     showError(err.message);
@@ -1133,7 +1175,9 @@ function rebuildFaceIndex() {
 function setModelStatus(cls, text) {
   const el = document.getElementById('modelStatus');
   el.className = `model-status ${cls}`;
-  el.innerHTML = `<span class="dot"></span>${escapeHtml(text)}`;
+  // บนจอแคบข้อความถูกซ่อน เหลือแต่จุดสี — ใส่ title ไว้ให้กดค้าง/ชี้เมาส์แล้วยังรู้สถานะ
+  el.title = text;
+  el.innerHTML = `<span class="dot"></span><span class="label">${escapeHtml(text)}</span>`;
 }
 
 async function bootstrap() {
@@ -1156,9 +1200,19 @@ async function bootstrap() {
 }
 
 function init() {
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebarBackdrop');
+
+  // บนมือถือเมนูเป็นแผงลอยทับเนื้อหา ต้องปิดได้ด้วยการแตะนอกเมนู
+  // ไม่งั้นคนที่เผลอเปิดจะหาทางปิดไม่เจอ เพราะไม่มีปุ่มปิดในตัวเมนู
+  const setMenu = (open) => {
+    sidebar.classList.toggle('open', open);
+    backdrop.hidden = !open;
+  };
   document.getElementById('menuToggle').addEventListener('click', () => {
-    document.getElementById('sidebar').classList.toggle('open');
+    setMenu(!sidebar.classList.contains('open'));
   });
+  backdrop.addEventListener('click', () => setMenu(false));
   document.getElementById('mainTabs').addEventListener('click', (e) => {
     const btn = e.target.closest('.nav-item');
     if (!btn) return;

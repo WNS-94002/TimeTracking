@@ -86,6 +86,23 @@ The scan loop is guarded by the module-level `scanToken`: `stopScanLoop()` incre
 bails if its captured token no longer matches. `await` points inside the loop mean a view change can land
 mid-iteration — that is exactly what the token check catches. Keep the check after every `await`.
 
+## Mobile
+
+Phones are a primary target, not an afterthought. Things that are load-bearing:
+
+- `loadModels()` **must** `await faceapi.tf.ready()` before `loadFromUri`. Devices without WebGL fall back to the
+  `wasm` backend, which is not auto-initialized — skipping this fails every model load with *"The highest
+  priority backend 'wasm' has not yet been initialized"*. Desktops with WebGL hide this, so it only shows up on
+  the low-end phones the app is meant to run on.
+- Inputs are `font-size: 16px` under 600px. Anything smaller makes iOS Safari zoom the page on focus, and the
+  user then has to pinch back out after every field.
+- Mirroring follows the camera: `user` is mirrored (feels like a mirror to the person standing there),
+  `environment` is not (already matches what the eye sees). `applyMirror()` owns this — don't hardcode the
+  `mirrored` class in markup.
+- `hasMultipleCameras()` only works **after** permission is granted; iOS Safari hides device labels and counts
+  until then. That is why the flip button is revealed in `startScan()`, not at render time.
+- Wide tables must stay inside `.table-wrap` (`overflow-x: auto`) so the table scrolls, not the page.
+
 ## Face matching
 
 - Library is **`@vladmandic/face-api`** (CDN), not the original `face-api.js` — the original stopped at 0.22.2 in

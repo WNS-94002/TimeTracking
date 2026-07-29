@@ -176,6 +176,10 @@ body {
   font-weight: 700;
   letter-spacing: -0.01em;
   margin: 0;
+  min-width: 0;                /* ให้ย่อได้เมื่อพื้นที่ไม่พอ แทนที่จะดันของข้าง ๆ ตกขอบ */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .topbar-spacer { flex: 1; }
@@ -814,6 +818,40 @@ tbody tr:hover { background: #f6f7fd; }
   background: var(--bg);
 }
 
+/* ปุ่มสลับกล้องหน้า/หลัง — ลอยอยู่มุมกรอบวิดีโอ ให้กดด้วยนิ้วโป้งได้ถนัด */
+.cam-flip {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 2;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(13, 15, 28, 0.62);
+  color: #fff;
+  display: none;              /* แสดงเมื่อพบว่ามีกล้องมากกว่าหนึ่งตัวเท่านั้น */
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+}
+
+.cam-flip.visible { display: flex; }
+/* กฎ display ด้านบนมี specificity สูงกว่า [hidden] ของเบราว์เซอร์ — ต้องเขียนกำกับไว้เอง
+   (เป็นกับดักเดียวกับ .cam-placeholder ที่เคยทำให้ป้ายบังภาพกล้อง) */
+.cam-flip[hidden] { display: none; }
+.cam-flip:disabled { opacity: 0.5; }
+.cam-flip svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+
+/* ฉากหลังของเมนูบนจอเล็ก */
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+  background: rgba(13, 15, 28, 0.45);
+}
+
 /* ===== Responsive ===== */
 
 @media (max-width: 1080px) {
@@ -830,6 +868,8 @@ tbody tr:hover { background: #f6f7fd; }
     transform: translateX(-100%);
     transition: transform 0.2s ease;
     box-shadow: var(--shadow);
+    padding-top: max(20px, env(safe-area-inset-top));
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
   }
 
   .sidebar.open { transform: translateX(0); }
@@ -837,4 +877,62 @@ tbody tr:hover { background: #f6f7fd; }
   .app { padding: 18px; }
   .topbar { padding: 14px 18px; }
   .brand-text { font-size: 0.9rem; }
+}
+
+/* ===== มือถือ ===== */
+
+@media (max-width: 600px) {
+  /* กันเนื้อหาโดนรอยบาก/แถบท่าทางของมือถือบัง */
+  .topbar {
+    padding: 10px 14px;
+    padding-top: max(10px, env(safe-area-inset-top));
+  }
+  .topbar h1 { font-size: 1.02rem; }
+
+  /* ป้ายสถานะโมเดลเหลือแค่จุดสี ข้อความยาวเกินกว่าจะอยู่บนแถบเดียวกับชื่อหน้าได้ */
+  .model-status { padding: 7px; border-radius: 50%; flex-shrink: 0; }
+  .model-status .label { display: none; }
+  .app {
+    padding: 14px;
+    padding-bottom: max(24px, env(safe-area-inset-bottom));
+  }
+
+  .card { padding: 16px 14px; border-radius: 12px; }
+  .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .stat-card { padding: 13px 12px; gap: 10px; }
+  .stat-card .stat-value { font-size: 1.32rem; }
+  .stat-icon { width: 36px; height: 36px; border-radius: 10px; }
+  .stat-icon svg { width: 18px; height: 18px; }
+
+  /* แนวตั้งใช้กรอบสูงกว่ากว้าง ใบหน้าจะได้ใหญ่เต็มจอกว่าเดิม */
+  .video-frame { aspect-ratio: 3 / 4; border-radius: 12px; }
+
+  /* ปุ่มหลักเต็มความกว้าง กดด้วยนิ้วโป้งได้ง่าย */
+  .scan-controls .btn { width: 100%; min-width: 0; padding: 15px 20px; font-size: 1rem; }
+  .form-actions { flex-direction: column; }
+  .form-actions .btn { width: 100%; padding: 13px 20px; }
+  .filters { flex-direction: column; align-items: stretch; }
+  .filters .btn { width: 100%; padding: 13px 20px; }
+  .form-grid { grid-template-columns: 1fr; }
+
+  /* iOS จะซูมหน้าจอเองอัตโนมัติเมื่อโฟกัสช่องกรอกที่ฟอนต์เล็กกว่า 16px
+     ตั้งเป็น 16px เป๊ะเพื่อไม่ให้หน้าเด้งซูมทุกครั้งที่แตะช่องกรอก */
+  .form-field input, .form-field select, .form-field textarea,
+  .filters input, .filters select { font-size: 16px; padding: 12px; }
+
+  .mode-switch { width: 100%; }
+  .mode-switch button { flex: 1; padding: 11px 8px; }
+
+  .result-card { min-height: 210px; padding: 18px 14px; }
+  .result-time { font-size: 2.2rem; }
+  .result-shot { width: 88px; height: 88px; }
+
+  .scan-feed { max-height: none; }
+
+  /* ตารางกว้างกว่าจอ — เลื่อนแนวนอนในกรอบตัวเอง ไม่ให้ทั้งหน้าเลื่อนตาม */
+  .table-wrap { -webkit-overflow-scrolling: touch; }
+  th, td { padding: 10px 8px; }
+  table { font-size: 0.84rem; }
+
+  .sample-slot { width: 76px; height: 76px; }
 }

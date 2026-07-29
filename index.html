@@ -2,12 +2,21 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<!-- viewport-fit=cover + safe-area ใน CSS เพื่อให้เนื้อหาไม่ถูกรอยบาก/แถบล่างของมือถือบัง
+     maximum-scale ไม่ใส่โดยตั้งใจ — การห้ามซูมทำให้คนสายตาไม่ดีใช้งานไม่ได้ -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#14172b" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="บันทึกเวลา" />
 <title>ระบบบันทึกเวลาทำงาน</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div class="app-shell">
+    <!-- ฉากหลังทึบสำหรับปิดเมนูด้วยการแตะนอกเมนูบนมือถือ -->
+    <div class="sidebar-backdrop" id="sidebarBackdrop" hidden></div>
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-brand">
         <span class="brand-mark">TT</span>
@@ -48,7 +57,7 @@
         </button>
         <h1 id="pageTitle">สแกนเข้า-ออกงาน</h1>
         <span class="topbar-spacer"></span>
-        <span class="model-status is-loading" id="modelStatus"><span class="dot"></span>กำลังโหลดโมเดลใบหน้า...</span>
+        <span class="model-status is-loading" id="modelStatus" title="กำลังโหลดโมเดลใบหน้า..."><span class="dot"></span><span class="label">กำลังโหลดโมเดลใบหน้า...</span></span>
       </header>
 
       <main id="app" class="app">
