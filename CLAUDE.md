@@ -64,8 +64,17 @@ index.html ──> face.js  (face-api: models, camera, descriptors, matching —
 
 ## Camera lifecycle
 
-`setView()` calls `stopScanLoop()` + `FaceEngine.stopCamera()` on **every** view change. Any new view that opens
-the camera must be reachable only through `setView`, or the camera light stays on after navigating away.
+**The camera never opens on its own.** Both camera views render with a placeholder and an explicit button
+("เริ่มสแกน" / "เปิดกล้อง"); `startScan()` and `startEnrollCamera()` only run from a click. Do not call them
+from a `render*()` function — an attendance kiosk that grabs the webcam the moment the page loads is exactly
+what the user asked us to stop doing.
+
+`setView()` calls `stopScanLoop()` + `FaceEngine.stopCamera()` and clears `state.enroll.cameraOn` on **every**
+view change. Any new view that opens the camera must be reachable only through `setView`, or the camera light
+stays on after navigating away.
+
+`state.scanning` / `state.enroll.cameraOn` drive the button labels and the enable state of "เก็บภาพ". Both are
+reset by `setView`, so returning to a camera view always lands back on "press to start" — never auto-resuming.
 
 The scan loop is guarded by the module-level `scanToken`: `stopScanLoop()` increments it, and each iteration
 bails if its captured token no longer matches. `await` points inside the loop mean a view change can land

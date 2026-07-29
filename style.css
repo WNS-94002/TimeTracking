@@ -651,11 +651,27 @@ tbody tr:hover { background: #f6f7fd; }
   stroke-width: 1.5;
 }
 
+/* แถบปุ่มควบคุมกล้องใต้กรอบวิดีโอ */
+.scan-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.scan-controls .btn {
+  min-width: 200px;
+  padding: 12px 24px;
+  font-size: 0.95rem;
+}
+
 .scan-hint {
-  margin-top: 12px;
+  margin: 0;
   color: var(--text-muted);
   font-size: 0.85rem;
   text-align: center;
+  min-height: 1.3em;   /* กันหน้าเด้งขึ้นลงตอนข้อความสถานะเปลี่ยนความยาว */
 }
 
 /* ปุ่มเลือกโหมด เข้า/ออก/อัตโนมัติ */

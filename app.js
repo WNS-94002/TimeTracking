@@ -20,10 +20,11 @@ const state = {
   faces: [],
   faceIndex: [],
   scanMode: 'AUTO',       // AUTO | IN | OUT
+  scanning: false,        // กล้องเปิดอยู่หรือไม่ — เริ่มเป็น false เสมอ ต้องกดปุ่มก่อน
   today: [],              // แถว Attendance ของวันนี้ (ใช้ทั้งหน้าสแกนและภาพรวม)
   attendance: [],         // ผลการค้นหาในหน้าประวัติ
   attendanceFilter: {},
-  enroll: { employeeId: '', samples: [] }
+  enroll: { employeeId: '', samples: [], cameraOn: false }
 };
 
 const PAGE_TITLES = {
@@ -130,6 +131,7 @@ function num(value, fallback) {
 function setView(view, params) {
   stopScanLoop();          // ออกจากหน้าที่ใช้กล้องเมื่อไร ต้องปิดกล้องทันที ไฟกล้องจะได้ไม่ค้าง
   FaceEngine.stopCamera();
+  state.enroll.cameraOn = false;
   state.view = view;
   state.params = params || {};
   render();
@@ -172,6 +174,7 @@ let scanBusy = false;
 function stopScanLoop() {
   scanToken++;
   scanBusy = false;
+  state.scanning = false;
 }
 
 function renderScan(app) {
@@ -183,10 +186,13 @@ function renderScan(app) {
           <canvas class="overlay" id="scanOverlay"></canvas>
           <div class="cam-placeholder" id="camPlaceholder">
             <svg viewBox="0 0 24 24"><path d="M23 7l-7 5 7 5V7z" stroke-linecap="round" stroke-linejoin="round"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
-            <span>กำลังเปิดกล้อง...</span>
+            <span id="camMessage">กดปุ่ม "เริ่มสแกน" เพื่อเปิดกล้อง</span>
           </div>
         </div>
-        <p class="scan-hint" id="scanHint">หันหน้าเข้ากล้องให้อยู่ในกรอบ ระบบจะบันทึกให้อัตโนมัติ</p>
+        <div class="scan-controls">
+          <button class="btn" id="btnScanToggle">เริ่มสแกน</button>
+          <p class="scan-hint" id="scanHint">กล้องจะเปิดก็ต่อเมื่อกดปุ่มนี้เท่านั้น</p>
+        </div>
       </div>
 
       <div>
@@ -224,8 +230,48 @@ function renderScan(app) {
     });
   });
 
+  document.getElementById('btnScanToggle').addEventListener('click', () => {
+    if (state.scanning) stopScan();
+    else startScan();
+  });
+
   renderScanFeed();
-  startScan();
+}
+
+/** ปิดกล้องและหยุดลูป แล้วคืนหน้าจอกลับสู่สถานะรอกดเริ่ม */
+function stopScan() {
+  stopScanLoop();
+  FaceEngine.stopCamera();
+
+  const video = document.getElementById('scanVideo');
+  // ต้องล้าง srcObject ด้วย ไม่งั้นภาพเฟรมสุดท้ายจะค้างอยู่บนจอ ดูเหมือนกล้องยังทำงาน
+  if (video) video.srcObject = null;
+
+  FaceEngine.clearBox(document.getElementById('scanOverlay'));
+  const placeholder = document.getElementById('camPlaceholder');
+  if (placeholder) placeholder.hidden = false;
+  setScanMessage('กดปุ่ม "เริ่มสแกน" เพื่อเปิดกล้อง');
+  setScanButton('เริ่มสแกน', false);
+  setScanHint('กล้องจะเปิดก็ต่อเมื่อกดปุ่มนี้เท่านั้น');
+  showResult(null);
+}
+
+function setScanButton(label, running, disabled) {
+  const btn = document.getElementById('btnScanToggle');
+  if (!btn) return;
+  btn.textContent = label;
+  btn.disabled = !!disabled;
+  btn.classList.toggle('danger', !!running);
+}
+
+function setScanMessage(text) {
+  const el = document.getElementById('camMessage');
+  if (el) el.textContent = text;
+}
+
+function setScanHint(text) {
+  const el = document.getElementById('scanHint');
+  if (el) el.textContent = text;
 }
 
 function renderScanFeed() {
@@ -263,26 +309,32 @@ async function startScan() {
   const video = document.getElementById('scanVideo');
   const overlay = document.getElementById('scanOverlay');
   const placeholder = document.getElementById('camPlaceholder');
-  const hint = document.getElementById('scanHint');
+
+  setScanButton('กำลังเปิดกล้อง...', false, true);
 
   try {
     if (!FaceEngine.isReady()) {
-      placeholder.querySelector('span').textContent = 'กำลังโหลดโมเดลใบหน้า...';
+      setScanMessage('กำลังโหลดโมเดลใบหน้า...');
       await FaceEngine.loadModels();
     }
+    setScanMessage('กำลังเปิดกล้อง...');
     await FaceEngine.startCamera(video);
   } catch (err) {
     showError(err.message);
-    placeholder.querySelector('span').textContent = err.message;
+    setScanMessage(err.message);
+    setScanButton('ลองอีกครั้ง', false);
     return;
   }
 
-  if (state.view !== 'scan') { FaceEngine.stopCamera(); return; } // ผู้ใช้เปลี่ยนหน้าระหว่างรอกล้อง
-  placeholder.hidden = true;
+  // ผู้ใช้อาจเปลี่ยนหน้าระหว่างรอกล้อง — ต้องปิดกล้องที่เพิ่งเปิดทิ้ง ไม่งั้นไฟกล้องค้าง
+  if (state.view !== 'scan') { FaceEngine.stopCamera(); return; }
 
-  if (!state.faceIndex.length) {
-    hint.textContent = 'ยังไม่มีใบหน้าที่ลงทะเบียนไว้ — ไปที่เมนู "ลงทะเบียนใบหน้า" ก่อน';
-  }
+  placeholder.hidden = true;
+  state.scanning = true;
+  setScanButton('หยุดสแกน', true);
+  setScanHint(state.faceIndex.length
+    ? 'หันหน้าเข้ากล้องให้อยู่ในกรอบ ระบบจะบันทึกให้อัตโนมัติ'
+    : 'ยังไม่มีใบหน้าที่ลงทะเบียนไว้ — ไปที่เมนู "ลงทะเบียนใบหน้า" ก่อน');
 
   scanToken++;
   const myToken = scanToken;
@@ -306,13 +358,13 @@ async function startScan() {
           FaceEngine.drawBox(overlay, video, detection, result.employeeId ? '#16a34a' : '#d97706');
           if (!result.employeeId) {
             stabilizer.reset();
-            hint.textContent = matchFailMessage(result);
+            setScanHint(matchFailMessage(result));
           } else {
-            hint.textContent = `กำลังยืนยัน... (${stabilizer.progress + 1}/${stabilizer.required})`;
+            setScanHint(`กำลังยืนยัน... (${stabilizer.progress + 1}/${stabilizer.required})`);
             if (stabilizer.push(result.employeeId)) {
               scanBusy = true;
               stabilizer.reset();
-              await submitScan(result.employeeId, result.distance, video, overlay, hint, myToken);
+              await submitScan(result.employeeId, result.distance, video, overlay, myToken);
             }
           }
         }
@@ -331,7 +383,7 @@ function matchFailMessage(result) {
   return 'ไม่พบข้อมูลใบหน้าของคนนี้';
 }
 
-async function submitScan(employeeId, distance, video, overlay, hint, myToken) {
+async function submitScan(employeeId, distance, video, overlay, myToken) {
   const photo = FaceEngine.snapshot(video);
   const employee = employeeById(employeeId);
   showResult({ pending: true, employee });
@@ -360,7 +412,7 @@ async function submitScan(employeeId, distance, video, overlay, hint, myToken) {
     if (myToken !== scanToken) return;
     scanBusy = false;
     FaceEngine.clearBox(overlay);
-    if (hint) hint.textContent = 'หันหน้าเข้ากล้องให้อยู่ในกรอบ ระบบจะบันทึกให้อัตโนมัติ';
+    setScanHint('หันหน้าเข้ากล้องให้อยู่ในกรอบ ระบบจะบันทึกให้อัตโนมัติ');
     showResult(null);
   }, 4000);
 }
@@ -683,10 +735,13 @@ function renderEnroll(app) {
           <video id="enrollVideo" playsinline muted></video>
           <div class="cam-placeholder" id="enrollPlaceholder">
             <svg viewBox="0 0 24 24"><path d="M23 7l-7 5 7 5V7z" stroke-linecap="round" stroke-linejoin="round"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
-            <span>กำลังเปิดกล้อง...</span>
+            <span id="enrollCamMessage">กดปุ่ม "เปิดกล้อง" เพื่อเริ่มลงทะเบียน</span>
           </div>
         </div>
-        <p class="scan-hint" id="enrollHint">เลือกพนักงาน แล้วเก็บภาพ ${ENROLL_SAMPLES} มุม</p>
+        <div class="scan-controls">
+          <button class="btn" id="btnEnrollCamera">เปิดกล้อง</button>
+          <p class="scan-hint" id="enrollHint">เลือกพนักงาน แล้วเก็บภาพ ${ENROLL_SAMPLES} มุม</p>
+        </div>
       </div>
 
       <div>
@@ -755,24 +810,36 @@ function renderEnroll(app) {
     btn.addEventListener('click', () => clearFaces(btn.dataset.clear));
   });
 
+  document.getElementById('btnEnrollCamera').addEventListener('click', startEnrollCamera);
+
   updateEnrollUi();
-  startEnrollCamera();
 }
 
 async function startEnrollCamera() {
   const video = document.getElementById('enrollVideo');
   const placeholder = document.getElementById('enrollPlaceholder');
+  const btn = document.getElementById('btnEnrollCamera');
+  const message = document.getElementById('enrollCamMessage');
+
+  btn.disabled = true;
+  btn.textContent = 'กำลังเปิดกล้อง...';
+
   try {
     if (!FaceEngine.isReady()) {
-      placeholder.querySelector('span').textContent = 'กำลังโหลดโมเดลใบหน้า...';
+      message.textContent = 'กำลังโหลดโมเดลใบหน้า...';
       await FaceEngine.loadModels();
     }
     await FaceEngine.startCamera(video);
     if (state.view !== 'enroll') { FaceEngine.stopCamera(); return; }
     placeholder.hidden = true;
+    btn.hidden = true;
+    state.enroll.cameraOn = true;
+    updateEnrollUi();
   } catch (err) {
     showError(err.message);
-    placeholder.querySelector('span').textContent = err.message;
+    message.textContent = err.message;
+    btn.disabled = false;
+    btn.textContent = 'ลองอีกครั้ง';
   }
 }
 
@@ -791,6 +858,10 @@ function updateEnrollUi() {
   }
   const saveBtn = document.getElementById('btnSaveFace');
   if (saveBtn) saveBtn.disabled = !(state.enroll.employeeId && samples.length === ENROLL_SAMPLES);
+
+  // กดเก็บภาพไม่ได้จนกว่ากล้องจะเปิด มิฉะนั้นจะได้แต่ข้อความ "ไม่พบใบหน้า" ที่ชี้สาเหตุผิด
+  const captureBtn = document.getElementById('btnCapture');
+  if (captureBtn) captureBtn.disabled = !state.enroll.cameraOn;
 
   const status = document.getElementById('enrollStatus');
   if (status) {
